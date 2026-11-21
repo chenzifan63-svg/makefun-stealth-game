@@ -187,9 +187,22 @@ export function createRenderer(canvas) {
     context.globalAlpha = pulse;
     context.fillStyle = PALETTE.exitGlow;
     context.beginPath();
-    context.arc(exit.x, exit.y, 34, 0, Math.PI * 2);
+    context.arc(exit.x, exit.y, exit.open ? 52 : 34, 0, Math.PI * 2);
     context.fill();
     context.restore();
+    if (exit.open) {
+      // The open exit calls to the courier: a wide pulsing ring around the door.
+      context.save();
+      context.globalAlpha = 0.5 + 0.3 * Math.sin(state.time * 5);
+      context.strokeStyle = PALETTE.exit;
+      context.lineWidth = 3;
+      context.setLineDash([12, 10]);
+      context.lineDashOffset = -state.time * 24;
+      context.beginPath();
+      context.arc(exit.x, exit.y, 46, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    }
     context.fillStyle = exit.open ? PALETTE.exit : '#7d8aa0';
     context.fillRect(exit.x - 18, exit.y - 22, 36, 44);
     context.fillStyle = '#0b0e14';

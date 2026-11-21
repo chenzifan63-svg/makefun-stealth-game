@@ -27,7 +27,7 @@ export const LEVELS = [
     ],
     guards: [
       { waypoints: [[8, 1], [13, 1], [13, 2], [8, 2]], speed: 55 },
-      { waypoints: [[12, 5], [12, 7], [7, 7], [7, 5]], speed: 60 },
+      { waypoints: [[12, 5], [12, 7], [9, 7], [7, 7], [7, 5]], speed: 60 },
     ],
   },
   {
