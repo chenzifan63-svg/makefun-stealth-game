@@ -33,7 +33,7 @@ export const GUARD = {
 };
 
 export const LIVES = 3;
-export const POINTS = { document: 100, level: 250, ghost: 150 };
+export const POINTS = { document: 100, level: 250, ghost: 150, coin: 25, keycard: 50 };
 
 export const PALETTE = {
   backdrop: '#121722',
@@ -54,6 +54,8 @@ export const PALETTE = {
   coneAlert: 'rgba(255, 60, 50, 0.45)',
   coneEdge: 'rgba(255, 214, 90, 0.75)',
   document: '#7ef0c1',
+  keycard: '#b78cff',
+  coin: '#f2c94c',
   exit: '#58d68d',
   exitGlow: 'rgba(88, 214, 141, 0.25)',
   text: '#eef1f5',

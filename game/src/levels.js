@@ -1,15 +1,18 @@
-// The three night-shift levels of Shadow Courier. Each level is a tile map of
+// The five night-shift levels of Shadow Courier. Each level is a tile map of
 // 16 columns by 9 rows (one tile is 80 px, so 1280x720). Tile letters:
 //   #  wall — blocks movement and sight
 //   C  crate — low cover, blocks movement and sight, hide behind it
 //   S  shadow floor — dark patch, guards spot you half as fast there
 //   .  open floor
 //   P  the courier's start     D  a document to steal
-//   E  the exit door (opens once every document is taken)
+//   K  a keycard — the vault floors need it before the exit opens
+//   o  a coin — worth 25 points, a bonus for a risky detour
+//   E  the exit door (opens once every document — and keycard — is taken)
 // Guards are not letters in the map: their patrol routes are listed per level
 // as tile waypoints, so a route can cross open floor in any shape. Every
 // waypoint sits on open floor and every straight leg between two waypoints
 // crosses open floor only — a guard never clips through a wall or a crate.
+// A guard with runner: true is a fast patrol — same eyes, quicker feet.
 export const LEVELS = [
   {
     name: 'Night Shift',
@@ -17,7 +20,7 @@ export const LEVELS = [
     map: [
       '################',
       '#P....#....D...#',
-      '#.....#........#',
+      '#.....#......o.#',
       '#.C..........C.#',
       '#.....#........#',
       '#..S..#..S.....#',
@@ -36,7 +39,7 @@ export const LEVELS = [
     map: [
       '################',
       '#P..C....#..D..#',
-      '#......C.#.....#',
+      '#......C.#...o.#',
       '#..S....#..C...#',
       '#..#....#......#',
       '#..#..C....S...#',
@@ -56,9 +59,9 @@ export const LEVELS = [
     map: [
       '################',
       '#P...#...D.....#',
-      '#....#.........#',
+      '#....#......o..#',
       '#.C..#..C......#',
-      '#..............#',
+      '#............o.#',
       '#.S..#...S..C..#',
       '#....#...C.....#',
       '#.D..#....D..E##',
@@ -69,6 +72,54 @@ export const LEVELS = [
       { waypoints: [[13, 2], [13, 6], [10, 6], [10, 2]], speed: 88 },
       { waypoints: [[6, 6], [8, 6], [8, 7], [6, 7]], speed: 78 },
       // The watcher: one waypoint, so he stands and sweeps his cone around.
+      { waypoints: [[8, 4]], speed: 0, sweep: true },
+    ],
+  },
+  {
+    name: 'The Gold Vault',
+    tip: 'The vault needs its keycard — grab it and the coins first.',
+    map: [
+      '################',
+      '#P..C....D....o#',
+      '#....#....C..D.#',
+      '#.C...#..S...oC#',
+      '#....#......#..#',
+      '#..S....C...#.D#',
+      '#.o..#....o.#..#',
+      '#.DK..#......#E#',
+      '################',
+    ],
+    guards: [
+      { waypoints: [[1, 2], [4, 2]], speed: 70 },
+      { waypoints: [[8, 1], [13, 1]], speed: 75 },
+      // A runner: same eyes, quicker feet — his gold ring gives him away.
+      { waypoints: [[11, 3], [11, 6]], speed: 115, runner: true },
+      { waypoints: [[7, 3], [7, 5]], speed: 65 },
+      { waypoints: [[10, 5], [10, 7]], speed: 80 },
+    ],
+  },
+  {
+    name: 'The Rooftop Office',
+    tip: 'Six guards, one watcher, one keycard. Stay dark, stay patient.',
+    map: [
+      '################',
+      '#P...#...D....o#',
+      '#...C#......Co.#',
+      '#.C...#...S..D.#',
+      '#..............#',
+      '#..S.#....CD.#.#',
+      '#Co....#....o..#',
+      '#.D.K.#...#...E#',
+      '################',
+    ],
+    guards: [
+      { waypoints: [[2, 1], [4, 1]], speed: 85 },
+      { waypoints: [[8, 2], [11, 2]], speed: 90 },
+      // A runner on the open floor: he crosses the room fast.
+      { waypoints: [[12, 3], [12, 5]], speed: 120, runner: true },
+      { waypoints: [[3, 5], [3, 7], [5, 7]], speed: 70 },
+      { waypoints: [[7, 1], [7, 3]], speed: 78 },
+      // A second watcher, sweeping the middle of the office.
       { waypoints: [[8, 4]], speed: 0, sweep: true },
     ],
   },

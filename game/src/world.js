@@ -31,12 +31,20 @@ export function createWorld(random) {
     player: { x: 0, y: 0, angle: 0, crouching: false, moving: false, inShadow: false },
     guards: [],
     documents: [],
+    // Vault floors add two pickups: keycards the exit needs, and coins
+    // worth a detour. A level with no keycard opens its exit on documents
+    // alone, exactly as before.
+    keycards: [],
+    coins: [],
     exit: { x: 0, y: 0, open: false },
     score: 0,
     lives: LIVES,
     time: 0,
     docsTaken: 0,
     docsTotal: 0,
+    keysTaken: 0,
+    keysTotal: 0,
+    coinsTaken: 0,
     detection: 0,
     alarm: false,
     ghost: true,
@@ -54,10 +62,15 @@ export function createWorld(random) {
     state.player.crouching = false;
     state.guards = level.guards.map((def) => createGuard(def));
     state.documents = findTiles(level, 'D').map((p) => ({ x: p.x, y: p.y, taken: false }));
+    state.keycards = findTiles(level, 'K').map((p) => ({ x: p.x, y: p.y, taken: false }));
+    state.coins = findTiles(level, 'o').map((p) => ({ x: p.x, y: p.y, taken: false }));
     const exit = findTiles(level, 'E')[0];
     state.exit = { x: exit.x, y: exit.y, open: false };
     state.docsTaken = 0;
     state.docsTotal = state.documents.length;
+    state.keysTaken = 0;
+    state.keysTotal = state.keycards.length;
+    state.coinsTaken = 0;
     state.detection = 0;
     state.alarm = false;
     state.time = 0;
@@ -128,9 +141,27 @@ export function createWorld(random) {
           state.docsTaken += 1;
           state.score += POINTS.document;
           events |= EVENT_DOC;
-          if (state.docsTaken === state.docsTotal) state.exit.open = true;
         }
       }
+      for (const key of state.keycards) {
+        if (!key.taken && Math.hypot(key.x - player.x, key.y - player.y) < 32) {
+          key.taken = true;
+          state.keysTaken += 1;
+          state.score += POINTS.keycard;
+          events |= EVENT_DOC;
+        }
+      }
+      for (const coin of state.coins) {
+        if (!coin.taken && Math.hypot(coin.x - player.x, coin.y - player.y) < 28) {
+          coin.taken = true;
+          state.coinsTaken += 1;
+          state.score += POINTS.coin;
+          events |= EVENT_DOC;
+        }
+      }
+      // The exit opens only when everything is taken: documents on every
+      // floor, plus the keycard on the vault floors that have one.
+      state.exit.open = state.docsTaken === state.docsTotal && state.keysTaken === state.keysTotal;
       if (state.exit.open && Math.hypot(state.exit.x - player.x, state.exit.y - player.y) < 36) {
         state.score += POINTS.level + Math.max(0, 120 - Math.floor(state.time));
         if (state.ghost) state.score += POINTS.ghost;

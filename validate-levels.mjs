@@ -38,11 +38,15 @@ function legIsOpen(level, a, b) {
 LEVELS.forEach((level, index) => {
   let start = null;
   const docs = [];
+  const keys = [];
+  const coins = [];
   let exit = null;
   level.map.forEach((row, r) => {
     [...row].forEach((ch, c) => {
       if (ch === 'P') start = [c, r];
       if (ch === 'D') docs.push([c, r]);
+      if (ch === 'K') keys.push([c, r]);
+      if (ch === 'o') coins.push([c, r]);
       if (ch === 'E') exit = [c, r];
     });
   });
@@ -50,6 +54,18 @@ LEVELS.forEach((level, index) => {
   for (const [c, r] of docs) {
     if (!seen.has(`${c},${r}`)) {
       console.log(`level ${index + 1}: document at (${c},${r}) UNREACHABLE`);
+      failures += 1;
+    }
+  }
+  for (const [c, r] of keys) {
+    if (!seen.has(`${c},${r}`)) {
+      console.log(`level ${index + 1}: keycard at (${c},${r}) UNREACHABLE`);
+      failures += 1;
+    }
+  }
+  for (const [c, r] of coins) {
+    if (!seen.has(`${c},${r}`)) {
+      console.log(`level ${index + 1}: coin at (${c},${r}) UNREACHABLE`);
       failures += 1;
     }
   }
@@ -73,11 +89,11 @@ LEVELS.forEach((level, index) => {
       }
     }
   });
-  console.log(`level ${index + 1} (${level.name}): ${docs.length} docs, ${level.guards.length} guards, reachable=${seen.size} tiles`);
+  console.log(`level ${index + 1} (${level.name}): ${docs.length} docs, ${keys.length} keycards, ${coins.length} coins, ${level.guards.length} guards, reachable=${seen.size} tiles`);
 });
 
 if (failures > 0) {
   console.log(`VALIDATION FAILED: ${failures} problem(s)`);
   process.exit(1);
 }
-console.log('LEVELS VALID: all docs + exit reachable, all patrol legs on open floor');
+console.log('LEVELS VALID: all docs + keycards + coins + exit reachable, all patrol legs on open floor');

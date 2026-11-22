@@ -41,6 +41,9 @@ export function createGuard(def) {
     angle: points.length > 1 ? Math.atan2(points[1].y - start.y, points[1].x - start.x) : 0,
     speed: def.speed,
     sweep: Boolean(def.sweep),
+    // A runner patrols at speed, no different eyes — the gold ring in the
+    // renderer is what tells him apart from the walkers.
+    runner: Boolean(def.runner),
     sweepPhase: 0,
     waypoints: points,
     wpIndex: points.length > 1 ? 1 : 0,

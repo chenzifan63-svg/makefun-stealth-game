@@ -167,6 +167,14 @@ function nearestTarget(state) {
     if (d < bestDist) { bestDist = d; best = doc; }
   }
   if (best) return best;
+  // Vault floors: the keycard comes before the exit — a locked door with
+  // no card is a dead end the pilot would wait at forever.
+  for (const key of state.keycards) {
+    if (key.taken) continue;
+    const d = Math.hypot(key.x - player.x, key.y - player.y);
+    if (d < bestDist) { bestDist = d; best = key; }
+  }
+  if (best) return best;
   return state.exit;
 }
 
@@ -184,8 +192,9 @@ function directionTo(player, point) {
   return { x: dx / len, y: dy / len };
 }
 
-/** One pilot: it keeps its route and its patience between steps. */
-function createPilot() {
+/** One pilot: it keeps its route and its patience between steps. Exported
+ * so a plain Node harness can drive every level without a browser. */
+export function createPilot() {
   let path = null;
   let pathTarget = null;
   let stepsSincePlan = 0;
@@ -290,11 +299,15 @@ function snapshotState(state) {
     player: state.player,
     guards: state.guards,
     documents: state.documents,
+    keycards: state.keycards,
+    coins: state.coins,
     exit: state.exit,
     score: state.score,
     lives: state.lives,
     time: state.time,
     docsTaken: state.docsTaken,
+    keysTaken: state.keysTaken,
+    coinsTaken: state.coinsTaken,
     detection: state.detection,
     alarm: state.alarm,
     ghost: state.ghost,
@@ -309,11 +322,15 @@ function restoreState(world, snap) {
   Object.assign(st.player, s.player);
   st.guards = s.guards;
   st.documents = s.documents;
+  st.keycards = s.keycards;
+  st.coins = s.coins;
   Object.assign(st.exit, s.exit);
   st.score = s.score;
   st.lives = s.lives;
   st.time = s.time;
   st.docsTaken = s.docsTaken;
+  st.keysTaken = s.keysTaken;
+  st.coinsTaken = s.coinsTaken;
   st.detection = s.detection;
   st.alarm = s.alarm;
   st.ghost = s.ghost;
@@ -339,6 +356,20 @@ function frameScore(state) {
   if (state.detection >= 0.05 && state.detection <= 0.9) score += 2;
   for (const guard of state.guards) {
     if (Math.hypot(guard.x - player.x, guard.y - player.y) < 420) score += 1;
+  }
+  // Vault floors: a frame with the keycard in reach, or coins glinting
+  // nearby, tells the judge there is more to steal than documents.
+  for (const key of state.keycards) {
+    if (!key.taken && Math.hypot(key.x - player.x, key.y - player.y) < 300) {
+      score += 2;
+      break;
+    }
+  }
+  for (const coin of state.coins) {
+    if (!coin.taken && Math.hypot(coin.x - player.x, coin.y - player.y) < 200) {
+      score += 1;
+      break;
+    }
   }
   if (player.x > 160 && player.x < 1120 && player.y > 120 && player.y < 600) score += 1;
   if (pointIsWatched(state, player.x, player.y)) score += 2;
@@ -379,8 +410,9 @@ function runBestFrame(world, seconds, minSeconds) {
  *
  *   start — level 1, the best-looking frame of the first 30 s of real play:
  *           thief, cones, a document and the exit in one frame.
- *   play  — level 2 (The Vault Floor), best frame of 24 s of real play.
- *   sneak — level 3 (The Director's Wing), frozen the moment detection
+ *   play  — level 4 (The Gold Vault), best frame of 24 s of real play:
+ *           five guards, a runner, the keycard and coins in one frame.
+ *   sneak — level 5 (The Rooftop Office), frozen the moment detection
  *           first passes 0.3, the courier crouched with the watcher near.
  *   win   — the level-clear moment itself, courier on the open exit, with
  *           the HUD — the panel is never drawn over it.
@@ -390,14 +422,14 @@ export function stageShot(name, world) {
 
   if (name === 'play') {
     world.reset();
-    world.loadLevel(1);
+    world.loadLevel(3);
     runBestFrame(world, PLAY_SECONDS, 10);
     return { screen: SCREEN_PLAY, best: state.score };
   }
 
   if (name === 'sneak') {
     world.reset();
-    world.loadLevel(2);
+    world.loadLevel(4);
     const pilot = createPilot();
     for (let i = 0; i < 20 / STEP; i += 1) {
       const move = pilot.step(state);

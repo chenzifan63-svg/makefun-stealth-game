@@ -159,6 +159,14 @@ export function createRenderer(canvas) {
         context.strokeStyle = guard.detection > 0.7 ? PALETTE.danger : PALETTE.gold;
         context.stroke();
       }
+      // A runner wears a gold ring: same eyes, quicker feet.
+      if (guard.runner) {
+        context.beginPath();
+        context.arc(guard.x, guard.y, 20, 0, Math.PI * 2);
+        context.lineWidth = 2;
+        context.strokeStyle = PALETTE.gold;
+        context.stroke();
+      }
     }
   }
 
@@ -177,6 +185,45 @@ export function createRenderer(canvas) {
       context.fillRect(doc.x - 8, doc.y - 5, 16, 10);
       context.fillStyle = PALETTE.document;
       context.fillRect(doc.x - 8, doc.y - 5, 16, 3);
+    }
+  }
+
+  /** Coins: small gold dots, a bonus for a risky detour off the route. */
+  function drawCoins(state) {
+    for (const coin of state.coins) {
+      if (coin.taken) continue;
+      const pulse = 0.75 + 0.25 * Math.sin(state.time * 5 + coin.y);
+      context.save();
+      context.globalAlpha = pulse;
+      context.fillStyle = PALETTE.coin;
+      context.beginPath();
+      context.arc(coin.x, coin.y, 8, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+      context.lineWidth = 2;
+      context.strokeStyle = '#6b5312';
+      context.beginPath();
+      context.arc(coin.x, coin.y, 8, 0, Math.PI * 2);
+      context.stroke();
+    }
+  }
+
+  /** Keycards: purple cards the vault floors need before the exit opens. */
+  function drawKeycards(state) {
+    for (const key of state.keycards) {
+      if (key.taken) continue;
+      const pulse = 0.7 + 0.3 * Math.sin(state.time * 4 + key.x);
+      context.save();
+      context.globalAlpha = pulse;
+      context.fillStyle = PALETTE.keycard;
+      context.fillRect(key.x - 13, key.y - 9, 26, 18);
+      context.fillStyle = '#241a3d';
+      context.fillRect(key.x - 13, key.y - 9, 26, 5);
+      context.fillStyle = PALETTE.gold;
+      context.beginPath();
+      context.arc(key.x + 6, key.y + 2, 4, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
     }
   }
 
@@ -210,9 +257,13 @@ export function createRenderer(canvas) {
     context.textAlign = 'center';
     context.fillText('EXIT', exit.x, exit.y + 58);
     if (!exit.open) {
-      context.fillStyle = PALETTE.muted;
+      // A vault floor with its documents done but its keycard missing says
+      // so plainly, instead of a bare LOCKED.
+      const needKey = state.docsTaken === state.docsTotal
+        && state.keysTotal > 0 && state.keysTaken < state.keysTotal;
+      context.fillStyle = needKey ? PALETTE.keycard : PALETTE.muted;
       context.font = `16px ${FONT}`;
-      context.fillText('LOCKED', exit.x, exit.y - 28);
+      context.fillText(needKey ? 'NEED KEYCARD' : 'LOCKED', exit.x, exit.y - 28);
     }
   }
 
@@ -275,6 +326,14 @@ export function createRenderer(canvas) {
     if (state.levelIndex < LEVELS.length) {
       text(LEVELS[state.levelIndex].name, 24, FIELD.height - 52, 18, PALETTE.muted, 'left');
     }
+    // Vault floors: keycard state, bottom right — and coins pocketed.
+    if (state.keysTotal > 0) {
+      const gotKey = state.keysTaken === state.keysTotal;
+      text(gotKey ? 'KEY ✓' : 'KEY …', FIELD.width - 24, FIELD.height - 52, 18, gotKey ? PALETTE.keycard : PALETTE.muted, 'right');
+    }
+    if (state.coins.length > 0) {
+      text(`◆ ${state.coinsTaken}`, FIELD.width - 24, FIELD.height - 28, 18, PALETTE.gold, 'right');
+    }
   }
 
   function drawPanel(title, lines, prompt) {
@@ -314,6 +373,8 @@ export function createRenderer(canvas) {
     drawFloor(state.level);
     drawExit(state);
     drawDocuments(state);
+    drawCoins(state);
+    drawKeycards(state);
     drawGuards(state);
     drawPlayer(state);
     if (screen === SCREEN_TITLE) {
