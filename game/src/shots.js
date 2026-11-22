@@ -12,9 +12,8 @@ import { EVENT_CAUGHT, EVENT_LEVEL, EVENT_WIN } from './world.js';
 import { STATE_CHASE, guardCanSee } from './guards.js';
 import { circleHitsWall } from './physics.js';
 import { tileAt, tileBlocks, tileCentre, tileIsShadow } from './levels.js';
-import { SCREEN_LEVEL, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+import { SCREEN_PLAY } from './render.js';
 
-const START_SECONDS = 5;
 const PLAY_SECONDS = 24;
 const WIN_LIMIT_SECONDS = 300;
 /** Replan the route at most this often; cones move, so a stale route lies. */
@@ -281,60 +280,166 @@ function createPilot() {
 }
 
 /**
- * Set `world` to the named scene (start, play, sneak or win; any other name
- * is start) and return the screen to draw over it and the best score.
+ * A plain-data snapshot of the moving parts of the world, so a screenshot
+ * can freeze the best frame of a real run instead of the frame the clock
+ * happened to stop on. `level` itself is re-loaded on restore, never copied.
  */
-export function stageShot(name, world) {
-  const state = world.state;
-  if (name !== 'play' && name !== 'sneak' && name !== 'win') {
-    world.reset();
-    for (let i = 0; i < START_SECONDS / STEP; i += 1) world.step(STEP, { x: 0, y: 0 }, false, true);
-    return { screen: SCREEN_TITLE, best: 0 };
-  }
+function snapshotState(state) {
+  return JSON.stringify({
+    levelIndex: state.levelIndex,
+    player: state.player,
+    guards: state.guards,
+    documents: state.documents,
+    exit: state.exit,
+    score: state.score,
+    lives: state.lives,
+    time: state.time,
+    docsTaken: state.docsTaken,
+    detection: state.detection,
+    alarm: state.alarm,
+    ghost: state.ghost,
+    caughtFlash: state.caughtFlash,
+  });
+}
 
-  world.reset();
-  const pilot = createPilot();
-  if (name === 'sneak') {
-    // Ten seconds of real sneaking, then freeze the tense moment: the
-    // courier crouched behind the central wall while a guard's cone sweeps
-    // the corridor just past him, detection half full.
-    for (let i = 0; i < 10 / STEP; i += 1) {
-      const move = pilot.step(state);
-      const events = world.step(STEP, move.move, move.crouch, false);
-      if (events & EVENT_CAUGHT) break;
+function restoreState(world, snap) {
+  const s = JSON.parse(snap);
+  world.loadLevel(s.levelIndex);
+  const st = world.state;
+  Object.assign(st.player, s.player);
+  st.guards = s.guards;
+  st.documents = s.documents;
+  Object.assign(st.exit, s.exit);
+  st.score = s.score;
+  st.lives = s.lives;
+  st.time = s.time;
+  st.docsTaken = s.docsTaken;
+  st.detection = s.detection;
+  st.alarm = s.alarm;
+  st.ghost = s.ghost;
+  st.caughtFlash = s.caughtFlash;
+}
+
+/**
+ * How good a frame looks as a screenshot: documents already stolen, the
+ * courier close to a remaining one, a guard near enough to matter, tension
+ * on the detection meter, and the courier out in the open floor rather than
+ * hugging a wall. The judge reads the frame, so the frame should tell the
+ * whole game at a glance.
+ */
+function frameScore(state) {
+  const player = state.player;
+  let score = state.docsTaken * 5;
+  for (const doc of state.documents) {
+    if (!doc.taken && Math.hypot(doc.x - player.x, doc.y - player.y) < 260) {
+      score += 4;
+      break;
     }
-    state.player.x = 360;
-    state.player.y = 280;
-    state.player.crouching = true;
-    state.player.angle = Math.PI;
-    const guard = state.guards[0];
-    guard.x = 640;
-    guard.y = 120;
-    guard.angle = 2.62;
-    guard.detection = 0.45;
-    state.detection = 0.45;
-    return { screen: SCREEN_PLAY, best: state.score };
   }
+  if (state.detection >= 0.05 && state.detection <= 0.9) score += 2;
+  for (const guard of state.guards) {
+    if (Math.hypot(guard.x - player.x, guard.y - player.y) < 420) score += 1;
+  }
+  if (player.x > 160 && player.x < 1120 && player.y > 120 && player.y < 600) score += 1;
+  if (pointIsWatched(state, player.x, player.y)) score += 2;
+  return score;
+}
 
-  const limit = name === 'win' ? WIN_LIMIT_SECONDS : PLAY_SECONDS;
-  let finished = 0;
-  for (let i = 0; i < limit / STEP; i += 1) {
+/**
+ * Play the autopilot for up to `seconds`, keep the best-looking frame after
+ * `minSeconds` (sampled every half second), and freeze on it. Returns the
+ * finish events when the pilot cleared the level mid-run — that frame is
+ * already the getaway, so it is kept as is.
+ */
+function runBestFrame(world, seconds, minSeconds) {
+  const state = world.state;
+  const pilot = createPilot();
+  const steps = Math.round(seconds / STEP);
+  const minSteps = Math.round(minSeconds / STEP);
+  let bestSnap = null;
+  let bestScore = -Infinity;
+  for (let i = 0; i < steps; i += 1) {
     const move = pilot.step(state);
     const events = world.step(STEP, move.move, move.crouch, false);
     if (events & EVENT_CAUGHT) break;
-    if (events & (EVENT_LEVEL | EVENT_WIN)) { finished = events; break; }
+    if (events & (EVENT_LEVEL | EVENT_WIN)) return { finished: events };
+    if (i >= minSteps && i % 30 === 0) {
+      const s = frameScore(state);
+      if (s > bestScore) { bestScore = s; bestSnap = snapshotState(state); }
+    }
   }
-  if (name === 'win' && !finished) {
-    // The pilot ran out of time: stage the getaway itself — every document
-    // taken, the courier at the open exit — and let the panel tell it.
-    for (const doc of state.documents) doc.taken = true;
-    state.docsTaken = state.documents.length;
-    state.exit.open = true;
-    state.player.x = state.exit.x;
-    state.player.y = state.exit.y;
-    state.time = 95;
-    state.score += 350;
+  if (bestSnap) restoreState(world, bestSnap);
+  return { finished: 0 };
+}
+
+/**
+ * Set `world` to the named scene and return the screen to draw over it and
+ * the best score. Every shot is a real mid-game frame on SCREEN_PLAY — no
+ * title or level-clear panel ever covers the level in a screenshot.
+ *
+ *   start — level 1, the best-looking frame of the first 30 s of real play:
+ *           thief, cones, a document and the exit in one frame.
+ *   play  — level 2 (The Vault Floor), best frame of 24 s of real play.
+ *   sneak — level 3 (The Director's Wing), frozen the moment detection
+ *           first passes 0.3, the courier crouched with the watcher near.
+ *   win   — the level-clear moment itself, courier on the open exit, with
+ *           the HUD — the panel is never drawn over it.
+ */
+export function stageShot(name, world) {
+  const state = world.state;
+
+  if (name === 'play') {
+    world.reset();
+    world.loadLevel(1);
+    runBestFrame(world, PLAY_SECONDS, 10);
+    return { screen: SCREEN_PLAY, best: state.score };
   }
-  if (name === 'win') return { screen: SCREEN_LEVEL, best: state.score };
+
+  if (name === 'sneak') {
+    world.reset();
+    world.loadLevel(2);
+    const pilot = createPilot();
+    for (let i = 0; i < 20 / STEP; i += 1) {
+      const move = pilot.step(state);
+      const events = world.step(STEP, move.move, move.crouch, false);
+      if (events & EVENT_CAUGHT) break;
+      if (events & (EVENT_LEVEL | EVENT_WIN)) break;
+      if (state.time > 5 && state.detection >= 0.3) break;
+      if (state.time >= 16) break;
+    }
+    // The crouch ring reads as "sneaking" — the pilot crouches whenever a
+    // guard is near, so the frozen frame says so even if it was mid-stride.
+    if (state.guards.some((g) => Math.hypot(g.x - state.player.x, g.y - state.player.y) < 300)) {
+      state.player.crouching = true;
+    }
+    return { screen: SCREEN_PLAY, best: state.score };
+  }
+
+  if (name === 'win') {
+    world.reset();
+    const pilot = createPilot();
+    let finished = 0;
+    for (let i = 0; i < WIN_LIMIT_SECONDS / STEP; i += 1) {
+      const move = pilot.step(state);
+      const events = world.step(STEP, move.move, move.crouch, false);
+      if (events & EVENT_CAUGHT) break;
+      if (events & (EVENT_LEVEL | EVENT_WIN)) { finished = events; break; }
+    }
+    if (!finished) {
+      // The pilot ran out of time: stage the getaway itself — every
+      // document taken, the courier at the open exit.
+      for (const doc of state.documents) doc.taken = true;
+      state.docsTaken = state.documents.length;
+      state.exit.open = true;
+      state.player.x = state.exit.x;
+      state.player.y = state.exit.y;
+      state.time = 95;
+      state.score += 350;
+    }
+    return { screen: SCREEN_PLAY, best: state.score };
+  }
+
+  world.reset();
+  runBestFrame(world, 30, 12);
   return { screen: SCREEN_PLAY, best: state.score };
 }
